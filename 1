@@ -1,0 +1,100 @@
+# SmartVerwaltung - ganz einfacher Einstieg für dich
+
+# Schritt 1: Starte das Programm mit "streamlit run smartverwaltung.py"
+# Schritt 2: Nutze die einfache Oberfläche im Browser
+
+import streamlit as st
+import pandas as pd
+from datetime import date
+
+# --- Initial Setup ---
+st.set_page_config(page_title="SmartVerwaltung", layout="wide")
+st.title("🏠 SmartVerwaltung - Dein einfacher Start")
+
+# --- Session State Setup ---
+if "wohnungen" not in st.session_state:
+    st.session_state.wohnungen = []
+if "mieter" not in st.session_state:
+    st.session_state.mieter = []
+if "zahlungen" not in st.session_state:
+    st.session_state.zahlungen = []
+
+# --- Funktionen ---
+def add_wohnung(name, adresse, miete):
+    st.session_state.wohnungen.append({"Name": name, "Adresse": adresse, "Miete": miete})
+
+def add_mieter(wohnung, name, einzug):
+    st.session_state.mieter.append({"Wohnung": wohnung, "Name": name, "Einzug": einzug})
+
+def add_zahlung(mieter, monat, betrag):
+    st.session_state.zahlungen.append({"Mieter": mieter, "Monat": monat, "Betrag": betrag})
+
+# --- Tabs ---
+tab1, tab2, tab3 = st.tabs(["🏢 Wohnungen", "👥 Mieter", "💶 Zahlungen"])
+
+# --- Tab 1: Wohnungen ---
+with tab1:
+    st.subheader("Wohnung hinzufügen")
+    with st.form("Wohnung anlegen"):
+        name = st.text_input("Bezeichnung")
+        adresse = st.text_input("Adresse")
+        miete = st.number_input("Kaltmiete (EUR)", min_value=0.0, step=10.0)
+        if st.form_submit_button("Hinzufügen"):
+            add_wohnung(name, adresse, miete)
+            st.success("Wohnung hinzugefügt")
+
+    if st.session_state.wohnungen:
+        st.subheader("Alle Wohnungen")
+        st.dataframe(pd.DataFrame(st.session_state.wohnungen))
+
+# --- Tab 2: Mieter ---
+with tab2:
+    st.subheader("Mieter hinzufügen")
+    if not st.session_state.wohnungen:
+        st.warning("Bitte zuerst eine Wohnung anlegen.")
+    else:
+        with st.form("Mieter anlegen"):
+            wohnung = st.selectbox("Wohnung", [w["Name"] for w in st.session_state.wohnungen])
+            name = st.text_input("Name des Mieters")
+            einzug = st.date_input("Einzugsdatum", value=date.today())
+            if st.form_submit_button("Hinzufügen"):
+                add_mieter(wohnung, name, einzug)
+                st.success("Mieter hinzugefügt")
+
+        if st.session_state.mieter:
+            st.subheader("Alle Mieter")
+            st.dataframe(pd.DataFrame(st.session_state.mieter))
+
+# --- Tab 3: Zahlungen ---
+with tab3:
+    st.subheader("Zahlung eintragen")
+    if not st.session_state.mieter:
+        st.warning("Bitte zuerst Mieter anlegen.")
+    else:
+        with st.form("Zahlung erfassen"):
+            mieter = st.selectbox("Mieter", [m["Name"] for m in st.session_state.mieter])
+            monat = st.selectbox("Monat", ["Jan", "Feb", "Mrz", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"])
+            betrag = st.number_input("Betrag (EUR)", min_value=0.0, step=10.0)
+            if st.form_submit_button("Eintragen"):
+                add_zahlung(mieter, monat, betrag)
+                st.success("Zahlung erfasst")
+
+        if st.session_state.zahlungen:
+            st.subheader("Alle Zahlungen")
+            df = pd.DataFrame(st.session_state.zahlungen)
+            st.dataframe(df)
+
+            st.subheader("🚨 Rückstände prüfen")
+            rückstände = []
+            for m in st.session_state.mieter:
+                miete = next((w['Miete'] for w in st.session_state.wohnungen if w['Name'] == m['Wohnung']), 0)
+                zahlungen = sum(z['Betrag'] for z in st.session_state.zahlungen if z['Mieter'] == m['Name'])
+                monate = len(set(z['Monat'] for z in st.session_state.zahlungen if z['Mieter'] == m['Name']))
+                soll = monate * miete
+                if zahlungen < soll:
+                    rückstände.append({"Mieter": m['Name'], "Offen": soll - zahlungen})
+            if rückstände:
+                st.error("Folgende Mieter haben Rückstände:")
+                st.dataframe(pd.DataFrame(rückstände))
+            else:
+                st.success("Keine Rückstände 🟢")
